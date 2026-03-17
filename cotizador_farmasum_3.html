@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador Farmasum</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f7;color:#1a1a2e;min-height:100vh}
+
+.header{background:#1a2744;color:white;padding:14px 24px;display:flex;align-items:center;gap:12px}
+.header h1{font-size:17px;font-weight:600;letter-spacing:-0.3px}
+.header p{font-size:12px;opacity:0.6;margin-top:1px}
+.pill{background:#2dd4bf;color:#0f172a;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;margin-left:auto;white-space:nowrap}
+
+.upload-screen{max-width:780px;margin:40px auto;padding:0 20px}
+.upload-title{text-align:center;margin-bottom:28px}
+.upload-title h2{font-size:22px;font-weight:700;color:#1a2744;margin-bottom:6px}
+.upload-title p{font-size:14px;color:#64748b}
+
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:600px){.upload-grid{grid-template-columns:1fr}}
+
+.upload-card{background:white;border-radius:14px;border:2px dashed #cbd5e1;padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.upload-card:hover{border-color:#6366f1;background:#fafbff}
+.upload-card.loaded{border:2px solid #22c55e;background:#f0fdf4}
+.upload-card.dragover{border-color:#6366f1;background:#f0f0ff;transform:scale(1.01)}
+.upload-card input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.upload-icon{font-size:36px;margin-bottom:10px}
+.upload-card h3{font-size:14px;font-weight:600;color:#374151;margin-bottom:6px}
+.upload-card p{font-size:12px;color:#94a3b8;line-height:1.5}
+.file-loaded{font-size:12px;color:#16a34a;font-weight:500;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:5px}
+
+.process-btn{display:block;width:100%;padding:14px;background:#1a2744;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.15s;letter-spacing:-0.2px}
+.process-btn:hover:not(:disabled){background:#2d3f6e}
+.process-btn:disabled{background:#94a3b8;cursor:not-allowed}
+.tip{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+
+.loading-screen{max-width:500px;margin:80px auto;text-align:center;padding:20px}
+.loading-screen h2{font-size:18px;font-weight:600;margin-bottom:8px;color:#1a2744}
+.loading-screen p{font-size:13px;color:#64748b;margin-bottom:24px}
+.progress-bar{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#6366f1,#2dd4bf);transition:width 0.2s;border-radius:3px}
+.progress-label{font-size:12px;color:#94a3b8;margin-top:8px}
+
+.main{padding:16px 20px;max-width:1300px;margin:0 auto}
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:700px){.stats-bar{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:white;border-radius:10px;padding:12px 16px;border:1px solid #e2e8f0}
+.stat-card .num{font-size:24px;font-weight:700}
+.stat-card .lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-top:2px}
+.stat-card.green .num{color:#16a34a}
+.stat-card.amber .num{color:#d97706}
+.stat-card.red .num{color:#dc2626}
+.stat-card.blue .num{color:#2563eb}
+
+.section{background:white;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden}
+.tab-bar{display:flex;gap:2px;padding:12px 16px 0;border-bottom:1px solid #e2e8f0;background:#f8fafc;overflow-x:auto}
+.tab{padding:7px 14px;font-size:13px;cursor:pointer;border-radius:6px 6px 0 0;color:#64748b;border:1px solid transparent;border-bottom:none;white-space:nowrap;transition:all 0.1s;display:flex;align-items:center;gap:6px}
+.tab.active{background:white;color:#1a1a2e;border-color:#e2e8f0;margin-bottom:-1px;font-weight:500}
+.tab:hover:not(.active){background:#f1f5f9}
+
+.badge{padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-green{background:#dcfce7;color:#166534}
+.badge-amber{background:#fef9c3;color:#854d0e}
+.badge-gray{background:#f1f5f9;color:#475569}
+.badge-red{background:#fee2e2;color:#991b1b}
+
+.search-bar{padding:12px 16px;border-bottom:1px solid #f1f5f9}
+.search-bar input{width:100%;padding:7px 12px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none;background:#fafafa}
+.search-bar input:focus{border-color:#6366f1;background:white}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:600}
+td{padding:9px 14px;border-bottom:1px solid #f8fafc;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbff}
+.match-row td:first-child{border-left:3px solid #22c55e}
+.similar-row td:first-child{border-left:3px solid #f59e0b}
+.confirmed-similar-row td:first-child{border-left:3px solid #22c55e}
+.notfound-row td:first-child{border-left:3px solid #ef4444}
+
+.qty-badge{display:inline-block;background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:5px;font-weight:600;font-size:12px}
+.med-name{color:#374151;font-weight:500;font-size:13px}
+.med-cat{font-size:11px;color:#94a3b8;margin-top:1px}
+
+.confirm-btn{background:#16a34a;color:white;border:none;padding:5px 11px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500;transition:background 0.15s}
+.confirm-btn:hover{background:#15803d}
+.confirmed-tag{background:#dcfce7;color:#166534;border:1px solid #86efac;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+.undo-btn{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:11px;margin-left:4px;padding:3px 6px;border-radius:4px}
+.undo-btn:hover{color:#ef4444;background:#fee2e2}
+
+.select-match{font-size:12px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:white;cursor:pointer;width:100%;max-width:320px;outline:none}
+.select-match:focus{border-color:#6366f1}
+
+.score-bar{display:inline-block;width:44px;height:5px;background:#e2e8f0;border-radius:3px;vertical-align:middle;margin-left:6px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px}
+
+.export-bar{display:flex;align-items:center;padding:14px 16px;gap:10px;border-top:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap}
+.export-bar .info{flex:1;font-size:13px;color:#64748b;min-width:200px}
+.export-bar .info strong{color:#374151}
+.btn{padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;transition:all 0.15s;border:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn-primary{background:#1a2744;color:white}
+.btn-primary:hover{background:#2d3f6e}
+.btn-secondary{background:white;color:#374151;border:1px solid #d1d5db}
+.btn-secondary:hover{background:#f9fafb}
+.btn-reset{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.btn-reset:hover{background:#fecaca}
+.empty-state{text-align:center;padding:36px;color:#94a3b8;font-size:13px}
+.empty-state .icon{font-size:28px;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Cotizador Farmasum</h1>
+    <p>Comparador automático de medicamentos</p>
+  </div>
+  <span class="pill">IA de matching</span>
+</div>
+
+<div id="root"></div>
+
+<script>
+var state = {
+  screen: 'upload',
+  pedidoFile: null, pedidoName: '',
+  farmasumFile: null, farmasumName: '',
+  pedidoData: [], farmasumData: [],
+  matches: [], similars: [], notFound: [],
+  confirmedAssignments: {},
+  activeTab: 'similar', searchFilter: '',
+  progress: 0, progressLabel: ''
+};
+
+function readPedido(ab) {
+  var wb = XLSX.read(ab, {type:'array'});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+  var items = [];
+  for (var i=0; i<rows.length; i++) {
+    var row = rows[i];
+    var qty = row[3], det = row[6];
+    if (qty !== null && det !== null && String(qty).replace(/[.,]/g,'').match(/^\d+$/)) {
+      items.push({cantidad: parseInt(String(qty).replace(/[.,]/g,'')), detalle: String(det).trim()});
+    }
+  }
+  return items;
+}
+
+function readFarmasum(ab) {
+  var wb = XLSX.read(ab, {type:'array'});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+  var items = [];
+  for (var i=9; i<rows.length; i++) {
+    var name = rows[i][1];
+    if (name && String(name).trim()) {
+      items.push({row: i+1, name: String(name).trim()});
+    }
+  }
+  return items;
+}
+
+function normalize(s) {
+  return s.toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Z0-9\s]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+
+var ABBR = {
+  'COMP':'COMPRIMIDO','COMPRIMIDOS':'COMPRIMIDO','COMPRIMIDO':'COMPRIMIDO',
+  'AMP':'AMPOLLA','AMPOLLA':'AMPOLLA','AMPOLLAS':'AMPOLLA',
+  'JBE':'JARABE','JARABE':'JARABE','JRB':'JARABE',
+  'SOL':'SOLUCION','SOLUCION':'SOLUCION',
+  'SUSP':'SUSPENSION','SUSPENSION':'SUSPENSION',
+  'INY':'INYECTABLE','INYECTABLE':'INYECTABLE',
+  'CAP':'CAPSULA','CAPS':'CAPSULA','CAPSULA':'CAPSULA','CAPSULAS':'CAPSULA',
+  'GTS':'GOTAS','GOTAS':'GOTAS',
+  'CRE':'CREMA','CREMA':'CREMA',
+  'GR':'GR','GRS':'GR','GRA':'GR',
+  'FA':'FRASCO AMPOLLA','FRASCO':'FRASCO',
+  'SOB':'SOBRE','SOBRES':'SOBRE','SOBRE':'SOBRE',
+  'INH':'INHALADOR','INHALADOR':'INHALADOR',
+  'ML':'ML','MG':'MG','MCG':'MCG','UI':'UI','X':'X',
+};
+
+function expand(s) {
+  return s.split(' ').map(function(t){ return ABBR[t]||t; }).join(' ');
+}
+
+function extractCore(det) {
+  var norm = normalize(det);
+  var after = norm.indexOf(' - ') >= 0 ? norm.split(' - ').slice(1).join(' ') : norm;
+  return expand(after);
+}
+
+function jaccard(a, b) {
+  var setA = {}, setB = {};
+  a.split(' ').filter(function(t){return t.length>1}).forEach(function(t){setA[t]=1});
+  b.split(' ').filter(function(t){return t.length>1}).forEach(function(t){setB[t]=1});
+  var inter=0, union={};
+  Object.keys(setA).forEach(function(t){union[t]=1; if(setB[t]) inter++;});
+  Object.keys(setB).forEach(function(t){union[t]=1;});
+  var u = Object.keys(union).length;
+  return u ? inter/u : 0;
+}
+
+function computeScore(pedDet, farName) {
+  var p = extractCore(pedDet);
+  var f = expand(normalize(farName));
+  var base = jaccard(p, f);
+  var numsP = (p.match(/\d+/g)||[]).sort().join(',');
+  var numsF = (f.match(/\d+/g)||[]).sort().join(',');
+  var numBonus = (numsP && numsF && numsP === numsF) ? 0.12 : 0;
+  return Math.min(1, base + numBonus);
+}
+
+async function runMatching() {
+  var pedido = state.pedidoData, farmasum = state.farmasumData;
+  var matches=[], similars=[], notFound=[], confirmed={};
+  var total = pedido.length;
+
+  for (var i=0; i<total; i++) {
+    var ped = pedido[i];
+    var scored = farmasum.map(function(f){
+      return {row:f.row, name:f.name, sc:computeScore(ped.detalle, f.name)};
+    });
+    scored.sort(function(a,b){return b.sc-a.sc});
+    var best = scored[0];
+
+    if (best.sc >= 0.72) {
+      matches.push({pedidoIdx:i, farmasumRow:best.row, farmasumName:best.name, sc:best.sc});
+      confirmed[i] = best.row;
+    } else if (best.sc >= 0.28) {
+      var cands = scored.slice(0,6).filter(function(s){return s.sc>=0.2});
+      similars.push({pedidoIdx:i, candidates:cands, selectedRow:null, confirmed:false});
+    } else {
+      notFound.push({pedidoIdx:i});
+    }
+
+    if (i % 8 === 0) {
+      state.progress = Math.round((i+1)/total*100);
+      state.progressLabel = 'Procesando ' + (i+1) + ' de ' + total + '...';
+      renderLoading();
+      await new Promise(function(r){setTimeout(r,0)});
+    }
+  }
+
+  state.screen='results'; state.matches=matches; state.similars=similars;
+  state.notFound=notFound; state.confirmedAssignments=confirmed;
+  state.activeTab='similar'; state.searchFilter='';
+  render();
+}
+
+function exportXLSX() {
+  var qtyMap = {};
+  state.matches.forEach(function(m){
+    var qty = state.pedidoData[m.pedidoIdx].cantidad;
+    qtyMap[m.farmasumRow] = (qtyMap[m.farmasumRow]||0) + qty;
+  });
+  state.similars.filter(function(s){return s.confirmed}).forEach(function(s){
+    var qty = state.pedidoData[s.pedidoIdx].cantidad;
+    qtyMap[s.selectedRow] = (qtyMap[s.selectedRow]||0) + qty;
+  });
+
+  var wb = XLSX.read(state.farmasumFile, {type:'array'});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  state.farmasumData.forEach(function(f){
+    var qty = qtyMap[f.row];
+    if (qty) {
+      var cellRef = XLSX.utils.encode_cell({r: f.row-1, c:2});
+      if (!ws[cellRef]) ws[cellRef] = {};
+      ws[cellRef].v = qty; ws[cellRef].t = 'n';
+    }
+  });
+  XLSX.writeFile(wb, 'Farmasum_Cotizacion.xlsx');
+}
+
+function exportNotFound() {
+  var data = [['Detalle','Cantidad']];
+  state.notFound.forEach(function(nf){
+    var p = state.pedidoData[nf.pedidoIdx];
+    data.push([p.detalle, p.cantidad]);
+  });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'No encontrados');
+  XLSX.writeFile(wb, 'Medicamentos_No_Encontrados.xlsx');
+}
+
+function confirmSimilar(pedidoIdx) {
+  var sel = document.getElementById('sel-'+pedidoIdx);
+  var val = sel ? parseInt(sel.value) : 0;
+  if (!val) { alert('Por favor seleccioná un equivalente antes de confirmar.'); return; }
+  var s = state.similars.find(function(s){return s.pedidoIdx===pedidoIdx});
+  if (s) { s.selectedRow=val; s.confirmed=true; state.confirmedAssignments[pedidoIdx]=val; }
+  render();
+}
+
+function undoSimilar(pedidoIdx) {
+  var s = state.similars.find(function(s){return s.pedidoIdx===pedidoIdx});
+  if (s) { s.confirmed=false; s.selectedRow=null; delete state.confirmedAssignments[pedidoIdx]; }
+  render();
+}
+
+function handleFile(type, file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var ab = e.target.result;
+    if (type==='pedido') { state.pedidoFile=ab; state.pedidoName=file.name; }
+    else { state.farmasumFile=ab; state.farmasumName=file.name; }
+    render();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function startProcess() {
+  try {
+    var pedidoData = readPedido(state.pedidoFile);
+    var farmasumData = readFarmasum(state.farmasumFile);
+    if (!pedidoData.length) { alert('No se encontraron medicamentos en el archivo de cotización.'); return; }
+    if (!farmasumData.length) { alert('No se encontraron medicamentos en la plantilla Farmasum.'); return; }
+    state.screen='loading'; state.pedidoData=pedidoData; state.farmasumData=farmasumData;
+    state.progress=0; state.progressLabel='Iniciando...';
+    renderLoading();
+    runMatching();
+  } catch(e) {
+    alert('Error al leer los archivos: ' + e.message);
+  }
+}
+
+function resetApp() {
+  state.screen='upload'; state.pedidoFile=null; state.farmasumFile=null;
+  state.pedidoName=''; state.farmasumName=''; render();
+}
+
+function renderLoading() {
+  document.getElementById('root').innerHTML =
+    '<div class="loading-screen">' +
+    '<div style="font-size:40px;margin-bottom:16px">⚗️</div>' +
+    '<h2>Comparando medicamentos...</h2>' +
+    '<p>Analizando nombres, abreviaturas y dosis</p>' +
+    '<div class="progress-bar"><div class="progress-fill" style="width:'+state.progress+'%"></div></div>' +
+    '<div class="progress-label">'+state.progressLabel+'</div>' +
+    '</div>';
+}
+
+function renderUpload() {
+  var both = state.pedidoFile && state.farmasumFile;
+  document.getElementById('root').innerHTML =
+    '<div class="upload-screen">' +
+    '<div class="upload-title"><h2>Cargar archivos</h2>' +
+    '<p>Subí el pedido de cotización y la plantilla del proveedor para iniciar la comparación</p></div>' +
+    '<div class="upload-grid">' +
+
+    '<div class="upload-card '+(state.pedidoFile?'loaded':'')+'" ' +
+    'ondragover="event.preventDefault();this.classList.add(\'dragover\')" ' +
+    'ondragleave="this.classList.remove(\'dragover\')" ' +
+    'ondrop="event.preventDefault();this.classList.remove(\'dragover\');handleFile(\'pedido\',event.dataTransfer.files[0])">' +
+    '<input type="file" accept=".xlsx,.xls,.xlsm" onchange="handleFile(\'pedido\',this.files[0])">' +
+    '<div class="upload-icon">📋</div>' +
+    '<h3>Pedido de cotización</h3>' +
+    '<p>Archivo .xlsx con los medicamentos solicitados<br><span style="font-size:11px;opacity:0.7">Col. D: cantidad · Col. G: descripción</span></p>' +
+    (state.pedidoFile ? '<div class="file-loaded">'+state.pedidoName+'</div>' : '') +
+    '</div>' +
+
+    '<div class="upload-card '+(state.farmasumFile?'loaded':'')+'" ' +
+    'ondragover="event.preventDefault();this.classList.add(\'dragover\')" ' +
+    'ondragleave="this.classList.remove(\'dragover\')" ' +
+    'ondrop="event.preventDefault();this.classList.remove(\'dragover\');handleFile(\'farmasum\',event.dataTransfer.files[0])">' +
+    '<input type="file" accept=".xlsx,.xls,.xlsm" onchange="handleFile(\'farmasum\',this.files[0])">' +
+    '<div class="upload-icon">🏥</div>' +
+    '<h3>Plantilla Farmasum</h3>' +
+    '<p>Formulario de cotizaciones del proveedor<br><span style="font-size:11px;opacity:0.7">.xlsm · hoja "Agrupadores"</span></p>' +
+    (state.farmasumFile ? '<div class="file-loaded">'+state.farmasumName+'</div>' : '') +
+    '</div>' +
+
+    '</div>' +
+    '<button class="process-btn" onclick="startProcess()" '+(both?'':'disabled')+'>' +
+    (both ? '⚡ Iniciar comparación automática' : 'Cargá ambos archivos para continuar') +
+    '</button>' +
+    (both ? '<div class="tip">💡 <span>Los archivos se procesan en tu navegador. Ningún dato se envía a ningún servidor.</span></div>' : '') +
+    '</div>';
+}
+
+function renderResults() {
+  var matches=state.matches, similars=state.similars, notFound=state.notFound;
+  var pedidoData=state.pedidoData, farmasumData=state.farmasumData;
+  var activeTab=state.activeTab, searchFilter=state.searchFilter;
+  var confirmed = matches.length + similars.filter(function(s){return s.confirmed}).length;
+  var pending = similars.filter(function(s){return !s.confirmed}).length;
+  var total = pedidoData.length;
+
+  var tabContent = '';
+
+  if (activeTab === 'similar') {
+    var filtered = similars.filter(function(s){
+      if (!searchFilter) return true;
+      return pedidoData[s.pedidoIdx].detalle.toLowerCase().indexOf(searchFilter.toLowerCase()) >= 0;
+    });
+    tabContent = '<div class="search-bar"><input type="text" placeholder="🔍 Buscar medicamento..." oninput="state.searchFilter=this.value;render()" value="'+searchFilter+'"></div>';
+    tabContent += '<table><thead><tr><th style="width:34%">Pedido (licitación)</th><th style="width:9%">Cant.</th><th style="width:34%">Equivalente en Farmasum</th><th style="width:12%">Similitud</th><th style="width:11%">Acción</th></tr></thead><tbody>';
+    if (!filtered.length) {
+      tabContent += '<tr><td colspan="5" class="empty-state"><div class="icon">✅</div>¡No quedan pendientes!</td></tr>';
+    }
+    filtered.forEach(function(s) {
+      var ped = pedidoData[s.pedidoIdx];
+      var parts = ped.detalle.split(' - ');
+      var name = parts.length>1 ? parts.slice(1).join(' - ') : ped.detalle;
+      var cat = parts.length>1 ? parts[0] : '';
+      if (s.confirmed) {
+        var assigned = farmasumData.find(function(f){return f.row===s.selectedRow});
+        tabContent += '<tr class="confirmed-similar-row">' +
+          '<td><div class="med-name">'+name+'</div><div class="med-cat">'+cat+'</div></td>' +
+          '<td><span class="qty-badge">'+ped.cantidad.toLocaleString('es')+'</span></td>' +
+          '<td style="color:#16a34a;font-weight:500">'+(assigned?assigned.name:'')+'</td>' +
+          '<td><span style="color:#16a34a;font-size:12px">Confirmado</span></td>' +
+          '<td><span class="confirmed-tag">✓ OK</span><button class="undo-btn" onclick="undoSimilar('+s.pedidoIdx+')">deshacer</button></td>' +
+          '</tr>';
+      } else {
+        var opts = s.candidates.map(function(c){
+          return '<option value="'+c.row+'">'+c.name+' ('+Math.round(c.sc*100)+'%)</option>';
+        }).join('');
+        var bestPct = Math.round((s.candidates[0]?s.candidates[0].sc:0)*100);
+        var scoreColor = bestPct>=60?'#f59e0b':'#ef4444';
+        tabContent += '<tr class="similar-row">' +
+          '<td><div class="med-name">'+name+'</div><div class="med-cat">'+cat+'</div></td>' +
+          '<td><span class="qty-badge">'+ped.cantidad.toLocaleString('es')+'</span></td>' +
+          '<td><select class="select-match" id="sel-'+s.pedidoIdx+'"><option value="">— Seleccionar equivalente —</option>'+opts+'</select></td>' +
+          '<td><span style="font-weight:700;color:'+scoreColor+';font-size:12px">'+bestPct+'%</span>' +
+          '<span class="score-bar"><span class="score-fill" style="width:'+bestPct+'%;background:'+scoreColor+'"></span></span></td>' +
+          '<td><button class="confirm-btn" onclick="confirmSimilar('+s.pedidoIdx+')">Confirmar</button></td>' +
+          '</tr>';
+      }
+    });
+    tabContent += '</tbody></table>';
+  }
+
+  if (activeTab === 'match') {
+    tabContent = '<table><thead><tr><th style="width:42%">Pedido</th><th style="width:9%">Cant.</th><th style="width:37%">Farmasum</th><th style="width:12%">Similitud</th></tr></thead><tbody>';
+    matches.forEach(function(m) {
+      var ped = pedidoData[m.pedidoIdx];
+      var parts = ped.detalle.split(' - ');
+      var name = parts.length>1?parts.slice(1).join(' - '):ped.detalle;
+      var pct = Math.round(m.sc*100);
+      tabContent += '<tr class="match-row">' +
+        '<td><div class="med-name">'+name+'</div><div class="med-cat">'+(parts.length>1?parts[0]:'')+'</div></td>' +
+        '<td><span class="qty-badge">'+ped.cantidad.toLocaleString('es')+'</span></td>' +
+        '<td style="color:#166534">'+m.farmasumName+'</td>' +
+        '<td><span style="font-weight:700;color:#16a34a;font-size:12px">'+pct+'%</span></td>' +
+        '</tr>';
+    });
+    tabContent += '</tbody></table>';
+  }
+
+  if (activeTab === 'notfound') {
+    tabContent = '<table><thead><tr><th style="width:55%">Medicamento solicitado</th><th style="width:10%">Cant.</th><th style="width:35%">Estado</th></tr></thead><tbody>';
+    if (!notFound.length) {
+      tabContent += '<tr><td colspan="3" class="empty-state"><div class="icon">🎉</div>¡Todos los medicamentos tienen equivalente!</td></tr>';
+    }
+    notFound.forEach(function(nf) {
+      var ped = pedidoData[nf.pedidoIdx];
+      tabContent += '<tr class="notfound-row">' +
+        '<td><div class="med-name">'+ped.detalle+'</div></td>' +
+        '<td><span class="qty-badge">'+ped.cantidad.toLocaleString('es')+'</span></td>' +
+        '<td style="color:#dc2626;font-size:12px">Sin equivalente en Farmasum</td>' +
+        '</tr>';
+    });
+    tabContent += '</tbody></table>';
+    if (notFound.length) {
+      tabContent += '<div style="padding:12px 16px;border-top:1px solid #f1f5f9">' +
+        '<button class="btn btn-secondary" onclick="exportNotFound()">⬇ Exportar no encontrados (.xlsx)</button></div>';
+    }
+  }
+
+  document.getElementById('root').innerHTML =
+    '<div class="main">' +
+    '<div class="stats-bar">' +
+    '<div class="stat-card green"><div class="num">'+matches.length+'</div><div class="lbl">Exactos auto.</div></div>' +
+    '<div class="stat-card amber"><div class="num">'+pending+'</div><div class="lbl">Por revisar</div></div>' +
+    '<div class="stat-card red"><div class="num">'+notFound.length+'</div><div class="lbl">No encontrados</div></div>' +
+    '<div class="stat-card blue"><div class="num">'+confirmed+'</div><div class="lbl">Confirmados</div></div>' +
+    '</div>' +
+    '<div class="section">' +
+    '<div class="tab-bar">' +
+    '<div class="tab '+(activeTab==='similar'?'active':'')+'" onclick="state.activeTab=\'similar\';state.searchFilter=\'\';render()">⚠ Por revisar <span class="badge badge-amber">'+pending+'</span></div>' +
+    '<div class="tab '+(activeTab==='match'?'active':'')+'" onclick="state.activeTab=\'match\';render()">✓ Exactos <span class="badge badge-green">'+matches.length+'</span></div>' +
+    '<div class="tab '+(activeTab==='notfound'?'active':'')+'" onclick="state.activeTab=\'notfound\';render()">✗ No encontrados <span class="badge badge-red">'+notFound.length+'</span></div>' +
+    '</div>' +
+    '<div id="tab-content">'+tabContent+'</div>' +
+    '<div class="export-bar">' +
+    '<div class="info"><strong>'+confirmed+' de '+total+'</strong> medicamentos asignados' +
+    (pending>0?' <span style="color:#d97706">· '+pending+' pendientes</span>':' <span style="color:#16a34a">· ¡Todo revisado!</span>') +
+    '</div>' +
+    '<button class="btn btn-reset" onclick="resetApp()">↩ Nuevo archivo</button>' +
+    '<button class="btn btn-primary" onclick="exportXLSX()">⬇ Exportar plantilla Farmasum</button>' +
+    '</div>' +
+    '</div></div>';
+}
+
+function render() {
+  if (state.screen==='upload') renderUpload();
+  else if (state.screen==='loading') renderLoading();
+  else renderResults();
+}
+
+render();
+</script>
+</body>
+</html>
